@@ -84,7 +84,7 @@ holistic.setOptions({
     minTrackingConfidence: 0.5
 });
 
-//possibly camera related
+//camera related
 // holistic.onResults(onResults2);
 
 // function onResults2(results) {
