@@ -305,6 +305,26 @@ function init() {
     // var instances = M.Modal.init(elems, {});
     // manageModal = instances[0];
 
+    // REFERENCE CAMERA - STAYS FIXED, NEVER MOVES
+    camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        1,
+        2000
+    );
+    camera.position.set(0, 100, 700);  // FIXED - used by update3dpose()
+
+    // DISPLAY CAMERA - Can move freely for visual display
+    const displayCamera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        1,
+        2000
+    );
+    displayCamera.position.set(0, 100, 700);  // Start same as reference
+    window.displayCamera = displayCamera;  // Make globally accessible
+
+
 
     const container = document.createElement("div");
     container.style.position = "fixed";
@@ -316,13 +336,13 @@ function init() {
 
     document.body.appendChild(container);
 
-    camera = new THREE.PerspectiveCamera(
-        45,
-        window.innerWidth / window.innerHeight,
-        1,
-        2000
-    );
-    camera.position.set(0, 100, 3000);
+    // camera = new THREE.PerspectiveCamera(
+    //     45,
+    //     window.innerWidth / window.innerHeight,
+    //     1,
+    //     2000
+    // );
+    // camera.position.set(0, 100, 700);
 
     scene = new THREE.Scene();
     // scene.background = new THREE.Color(0xa0a0a0);
@@ -456,10 +476,10 @@ function init() {
             facemesh.material.metalness = 1;
             facemesh.material.roughness = 5;
 
-            const controls = new OrbitControls(camera, renderer.domElement);
+            // const controls = new OrbitControls(camera, renderer.domElement);
+            const controls = new OrbitControls(window.displayCamera, renderer.domElement);  // Use displayCamera
             controls.target.set(0, 100, 0);
             controls.enableZoom = true;
-
             controls.update();
 
             window.addEventListener("resize", onWindowResize, false);
@@ -477,9 +497,19 @@ function init() {
         });
 }
 
+// function onWindowResize() {
+//     camera.aspect = window.innerWidth / window.innerHeight;
+//     camera.updateProjectionMatrix();
+//
+//     renderer.setSize(window.innerWidth, window.innerHeight);
+// }
+
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+
+    window.displayCamera.aspect = window.innerWidth / window.innerHeight;
+    window.displayCamera.updateProjectionMatrix();
 
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
@@ -512,6 +542,7 @@ function animate() {
             pose_landmarks_dict[index_to_name[i]] = landmark;
         });
 
+        // Key: update3dpose() uses 'camera' which is FIXED
         let pos_3d_landmarks = update3dpose(
             camera,
             2.5,
@@ -1171,38 +1202,21 @@ function animate() {
         window.shouldRecordFrame = false; // Reset the flag so we don't record the same frame multiple times
     }
 
-    renderer.render(scene, camera);
+    // CRITICAL: Render with display camera, but pose calculations used reference camera
+    renderer.render(scene, window.displayCamera);
 
-    // === STATIC CAMERA POSITIONING (NO LERP - No BVH interference) ===
-    // if (model && camera) {
+    // === DISPLAY CAMERA FOLLOW (NO IMPACT ON POSES) ===
+    // if (model && window.displayCamera) {
     //     const boneHips = model.getObjectByName("mixamorigHips");
     //     if (boneHips) {
     //         const hipPos = boneHips.position.clone();
     //
-    //         // Position camera ahead/behind based on expected motion
-    //         // Try different offsets to see which keeps avatar visible longest
-    //         const cameraOffset = new THREE.Vector3(0, 80, -700);  // Further back, higher angle
-    //         camera.position.copy(hipPos.clone().add(cameraOffset));
-    //
-    //         // Keep camera looking at avatar
-    //         if (controls) {
-    //             controls.target.copy(hipPos);
-    //             controls.update();
-    //         }
-    //     }
-    // }
-    // === END STATIC CAMERA ===
-
-    // === CAMERA FOLLOW WITH VISIBLE TRANSLATION ===
-    // if (model && camera) {
-    //     const boneHips = model.getObjectByName("mixamorigHips");
-    //     if (boneHips) {
-    //         const hipPos = boneHips.position.clone();
-    //         const cameraOffset = new THREE.Vector3(0, 50, 1200);
+    //         // Display camera can move freely - doesn't affect pose calculations!
+    //         const cameraOffset = new THREE.Vector3(0, 80, -400);
     //         const targetCameraPos = hipPos.clone().add(cameraOffset);
-    //         const cameraFollowSpeed = 0.01;
+    //         const cameraFollowSpeed = 0.12;
     //
-    //         camera.position.lerp(targetCameraPos, cameraFollowSpeed);
+    //         window.displayCamera.position.lerp(targetCameraPos, cameraFollowSpeed);
     //
     //         if (controls) {
     //             controls.target.lerp(hipPos, cameraFollowSpeed);
@@ -1210,7 +1224,7 @@ function animate() {
     //         }
     //     }
     // }
-    // === END CAMERA FOLLOW ===
+    // === END DISPLAY CAMERA FOLLOW ===
 
     if(recording){
         document.getElementById("recdetails").innerHTML = "Recording... " + ((Date.now() - recordStartTime)/1000).toFixed(2) + " s (" + recordedMotionData.length + " frames)";
