@@ -322,7 +322,7 @@ function init() {
         1,
         2000
     );
-    camera.position.set(0, 100, 600);
+    camera.position.set(0, 100, 3000);
 
     scene = new THREE.Scene();
     // scene.background = new THREE.Color(0xa0a0a0);
@@ -605,9 +605,54 @@ function animate() {
         const jointRightUpLeg = pos_3d_landmarks["right_hip"];
         const jointSpine0 = newJoints3D["spine0"];
 
+        // Remove and Replace Code snippets for Hips Positioning
         const boneHips = model.getObjectByName("mixamorigHips");
         boneHips.position.copy(newJoints3D["hips"]); // Apply root translation
-        console.log(`[Animate] Applied Hips Position:`, newJoints3D["hips"]);
+
+        // const boneHips = model.getObjectByName("mixamorigHips");
+        // const hipFromMediaPipe = newJoints3D["hips"].clone();
+        // Smooth the movement - move 20% toward target each frame
+        // boneHips.position.lerp(hipFromMediaPipe, 0.05);
+        // console.log(`[Animate] Applied Hips Position:`, newJoints3D["hips"]);
+
+        // === CAMERA FOLLOW WITH VISIBLE TRANSLATION ===
+        // Let avatar move freely, camera follows with lag
+        // const hipPos = boneHips.position.clone();
+        // const cameraOffset = new THREE.Vector3(0, 50, 300);
+        // const targetCameraPos = hipPos.clone().add(cameraOffset);
+        // const cameraFollowSpeed = 0.06;
+        //
+        // camera.position.lerp(targetCameraPos, cameraFollowSpeed);
+        //
+        // if (controls) {
+        //     controls.target.lerp(hipPos, cameraFollowSpeed);
+        //     controls.update();
+        // }
+        // === END CAMERA FOLLOW ===
+
+        // --- ANCHOR HIP TO WORLD POSITION ---
+        // const targetHipPosition = new THREE.Vector3(0, 100, 0);
+        // const maxHipDrift = 60;
+        // const smoothReturnForce = 0.08;
+        //
+        // const currentHipPos = boneHips.position.clone();
+        // const distanceFromCenter = currentHipPos.distanceTo(targetHipPosition);
+        //
+        // if (distanceFromCenter > maxHipDrift) {
+        //     boneHips.position.lerp(targetHipPosition, smoothReturnForce);
+        //     console.log(`Hip drifting (${distanceFromCenter.toFixed(1)} units), returning...`);
+        // } else {
+        //     const poseShift = newJoints3D["hips"].clone().multiplyScalar(0.15);
+        //     const newPos = targetHipPosition.clone().add(poseShift);
+        //
+        //     newPos.x = Math.max(-maxHipDrift, Math.min(maxHipDrift, newPos.x));
+        //     newPos.y = Math.max(80, Math.min(120, newPos.y));
+        //     newPos.z = Math.max(-maxHipDrift, Math.min(maxHipDrift, newPos.z));
+        //
+        //     boneHips.position.copy(newPos);
+        // }
+
+
         const boneLeftUpLeg = model.getObjectByName("mixamorigLeftUpLeg");
         const boneRightUpLeg = model.getObjectByName("mixamorigRightUpLeg");
         const boneSpine0 = model.getObjectByName("mixamorigSpine");
@@ -1127,6 +1172,45 @@ function animate() {
     }
 
     renderer.render(scene, camera);
+
+    // === STATIC CAMERA POSITIONING (NO LERP - No BVH interference) ===
+    // if (model && camera) {
+    //     const boneHips = model.getObjectByName("mixamorigHips");
+    //     if (boneHips) {
+    //         const hipPos = boneHips.position.clone();
+    //
+    //         // Position camera ahead/behind based on expected motion
+    //         // Try different offsets to see which keeps avatar visible longest
+    //         const cameraOffset = new THREE.Vector3(0, 80, -700);  // Further back, higher angle
+    //         camera.position.copy(hipPos.clone().add(cameraOffset));
+    //
+    //         // Keep camera looking at avatar
+    //         if (controls) {
+    //             controls.target.copy(hipPos);
+    //             controls.update();
+    //         }
+    //     }
+    // }
+    // === END STATIC CAMERA ===
+
+    // === CAMERA FOLLOW WITH VISIBLE TRANSLATION ===
+    // if (model && camera) {
+    //     const boneHips = model.getObjectByName("mixamorigHips");
+    //     if (boneHips) {
+    //         const hipPos = boneHips.position.clone();
+    //         const cameraOffset = new THREE.Vector3(0, 50, 1200);
+    //         const targetCameraPos = hipPos.clone().add(cameraOffset);
+    //         const cameraFollowSpeed = 0.01;
+    //
+    //         camera.position.lerp(targetCameraPos, cameraFollowSpeed);
+    //
+    //         if (controls) {
+    //             controls.target.lerp(hipPos, cameraFollowSpeed);
+    //             controls.update();
+    //         }
+    //     }
+    // }
+    // === END CAMERA FOLLOW ===
 
     if(recording){
         document.getElementById("recdetails").innerHTML = "Recording... " + ((Date.now() - recordStartTime)/1000).toFixed(2) + " s (" + recordedMotionData.length + " frames)";
