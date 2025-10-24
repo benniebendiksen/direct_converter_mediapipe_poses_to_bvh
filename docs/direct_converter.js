@@ -122,19 +122,10 @@ function waitForModel() {
     });
 }
 
-// Helper function to wait for model to load
-// function waitForModel() {
-//     return new Promise((resolve) => {
-//         const checkInterval = setInterval(() => {
-//             if (window.model) {
-//                 clearInterval(checkInterval);
-//                 resolve();
-//             }
-//         }, 100);
-//     });
-// }
+// Expose function globally
+window.convertPoseJsonToBVH = convertPoseJsonToBVH;
 
-// Auto-convert on page load
+// Auto-convert on page load - ONLY ONE INSTANCE!
 window.addEventListener('load', async () => {
     // Wait for everything to initialize
     setTimeout(async () => {
@@ -142,18 +133,3 @@ window.addEventListener('load', async () => {
         await convertPoseJsonToBVH();
     }, 3000); // 3 second delay
 });
-
-// Expose function globally
-window.convertPoseJsonToBVH = convertPoseJsonToBVH;
-
-// Auto-convert on page load
-// window.addEventListener('load', async () => {
-//     // Wait a bit for everything to initialize
-//     setTimeout(async () => {
-//         console.log('Auto-starting conversion...');
-//         await convertPoseJsonToBVH();
-//     }, 3000); // 3 second delay to ensure model is loaded
-// });
-//
-// // Expose function globally
-// window.convertPoseJsonToBVH = convertPoseJsonToBVH;
