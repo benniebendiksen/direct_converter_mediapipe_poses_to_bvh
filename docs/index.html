@@ -1,38 +1,35 @@
 <!-- Ensure to first run a local server from the root directory, e.g., npx http-server docs -->
-<!--To open the console in Chrome on Mac, press Command + Option + J -->
+<!-- To open the console in Chrome on Mac, press Command + Option + J -->
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>pose2bvh - Stored Pose Playback</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Materialize + dependencies -->
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <!-- Three.js + BVH -->
   <script src="three.min.js"></script>
   <script src="bvh_converter.js"></script>
 
   <script>
-    var faceLandmarker;
-    var faceResults;
-    var holisticResults;
-
+    // your globals (kept as-is)
+    var faceLandmarker, faceResults, holisticResults;
     let camera, scene, renderer, stats;
-    var model;
-    var animation;
-    var animationDuration;
+    var model, animation, animationDuration;
     let camera_bvh, controls_bvh, scene_bvh, renderer_bvh;
     let mixer_bvh, skeletonHelper_bvh;
 
     var args = window.location.hash.replace("#", "").split(",");
     var fbxfile = args[0] || "ybot.fbx";
-    var trackingLine;
-    var line_tracker = [];
-    // var bvhRecorderFrequency = 20;
+    var trackingLine, line_tracker = [];
 
     var bvhRecorderFrequency = 30;
     var lastFrameTime = -1;
@@ -46,57 +43,128 @@
   </script>
 
   <style>
-    #results {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      color: black;
+    body { margin:0; background:#232323; }
+
+    /* ─── YouTube Mini Player (portrait compact) ─────────────────── */
+    #yt-mini{
+      position:fixed;
+      right:20px;
+      bottom:180px;
+      width:420px;
+      height:640px;
+      background:#111;
+      color:#fff;
+      border-radius:10px;
+      overflow:hidden;
+      z-index:10000;
+      user-select:none;
+      display:none;
+      box-shadow:0 10px 24px rgba(0,0,0,0.4);
+    }
+    .yt-mini-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background:#1f1f1f;
+      padding:8px 10px;
+      cursor:move;
+    }
+    .yt-mini-title{
+      font-weight:600;
+      font-size:0.95rem;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .yt-mini-actions a{ color:#ccc; }
+    .yt-mini-actions a:hover{ color:#fff; }
+
+    .yt-mini-body{
+      background:#121212;
+      height:calc(100% - 45px);
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      padding:8px;
+      gap:6px;
     }
 
-    #results div {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      max-height: 200px;
-      min-height: 200px;
-      overflow-y: hidden;
+    /* Input always visible and bright */
+    #yt-url {
+      width:100%;
+      background:#1c1c1c;
+      border:1px solid #42a5f5;
+      border-radius:6px;
+      color:#fff;
+      padding:10px;
+      font-size:15px;
+      outline:none;
     }
+    #yt-url::placeholder { color:#b0c4de; opacity:1; }
+    #yt-url:focus { border-color:#90caf9; box-shadow:0 0 4px #42a5f5; }
+
+    .yt-controls { display:flex; gap:8px; justify-content:center; flex-wrap: wrap; }
+
+    .yt-iframe-wrap{
+      flex:1;
+      background:#000;
+      border-radius:6px;
+      overflow:hidden;
+    }
+    #yt-iframe{
+      width:100%;
+      height:100%;
+      border:0;
+    }
+
+    #yt-mini.minimized .yt-mini-body{ display:none; }
+
+    #yt-toggle{
+      position:fixed;
+      right:20px;
+      bottom:90px;
+      z-index:10000;
+    }
+
+    /* Status card for saved paths */
+    #save-results {
+      position:fixed;
+      right:20px;
+      top:20px;
+      z-index:10001;
+      background:rgba(18,18,18,0.9);
+      color:#fff;
+      border-radius:8px;
+      padding:10px 12px;
+      max-width:420px;
+      display:none;
+    }
+    #save-results a { color:#80d8ff; text-decoration:underline; }
+
+    /* Mini toggle row */
+    .player-toggles { margin-top:6px; display:flex; gap:8px; justify-content:center; }
   </style>
-
 </head>
 
-<body style="margin:0;background:#232323">
-
-  <!-- Playback status display -->
+<body>
+  <!-- Playback status -->
   <div id="playbackStatus" style="position:fixed;top:20px;left:20px;color:white;background:rgba(0,0,0,0.7);padding:10px;border-radius:5px;z-index:9999;">
     Loading pose data...
   </div>
 
-  <!-- Playback controls -->
+  <!-- Basic playback controls -->
   <div style="position:fixed;top:70px;left:20px;z-index:9999;">
-<!--    <button class="btn waves-effect waves-light blue" onclick="window.posePlayer && window.posePlayer.play(false)">-->
-<!--      <i class="material-icons" style="vertical-align:middle;">play_arrow</i>-->
     <button id="playOnceBtn" class="btn waves-effect waves-light blue" onclick="window.posePlayer && window.posePlayer.play(false)" disabled>
-      <i class="material-icons" style="vertical-align:middle;">play_arrow</i>
-      Play Once
+      <i class="material-icons" style="vertical-align:middle;">play_arrow</i> Play Once
     </button>
-<!--    <button class="btn waves-effect waves-light orange" onclick="window.posePlayer && window.posePlayer.stop()">-->
-<!--      <i class="material-icons" style="vertical-align:middle;">stop</i>-->
     <button id="stopBtn" class="btn waves-effect waves-light orange" onclick="window.posePlayer && window.posePlayer.stop()" disabled>
-      <i class="material-icons" style="vertical-align:middle;">stop</i>
-      Stop
+      <i class="material-icons" style="vertical-align:middle;">stop</i> Stop
     </button>
-<!--    <button class="btn waves-effect waves-light purple" onclick="window.posePlayer && window.posePlayer.reset()">-->
-<!--      <i class="material-icons" style="vertical-align:middle;">replay</i>-->
     <button id="resetBtn" class="btn waves-effect waves-light purple" onclick="window.posePlayer && window.posePlayer.reset()" disabled>
-      <i class="material-icons" style="vertical-align:middle;">replay</i>
-      Reset
+      <i class="material-icons" style="vertical-align:middle;">replay</i> Reset
     </button>
-<!--    <button id="loopBtn" class="btn waves-effect waves-light grey" onclick="window.posePlayer && window.posePlayer.toggleLoop()">-->
-<!--      <i class="material-icons" style="vertical-align:middle;">loop</i>-->
     <button id="loopBtn" class="btn waves-effect waves-light grey" onclick="window.posePlayer && window.posePlayer.toggleLoop()" disabled>
-      <i class="material-icons" style="vertical-align:middle;">loop</i>
-      Loop
+      <i class="material-icons" style="vertical-align:middle;">loop</i> Loop
     </button>
   </div>
 
@@ -104,80 +172,41 @@
     Not Recording...
   </p>
 
-<!--  <button id="recordButton" style="position:absolute; left:0; bottom:0px; z-index: 1001;"-->
-<!--      class="main btn waves-effect waves-light green black-text large" onclick="toggleRecording()">-->
-<!--      <i class="material-icons" style="vertical-align:middle;font-size:200%">fiber_manual_record</i>-->
-  <button id="recordButton" style="position:absolute; left:0; bottom:0px; z-index: 1001;"
-      class="main btn waves-effect waves-light green black-text large" onclick="toggleRecording()" disabled>
-      <i class="material-icons" style="vertical-align:middle;font-size:200%">fiber_manual_record</i>
-      Record BVH
+  <button id="recordButton" style="position:absolute; left:0; bottom:0px; z-index:1001;"
+    class="main btn waves-effect waves-light green black-text large" onclick="toggleRecording()" disabled>
+    <i class="material-icons" style="vertical-align:middle;font-size:200%">fiber_manual_record</i> Record BVH
   </button>
 
-  <!-- Load pose player before threejs scene -->
+  <!-- Your scene/logic -->
   <script src="pose_player.js"></script>
   <script type="module" src="threejsscene.js"></script>
 
+  <!-- ─── BVH record/save helpers (unchanged) ───────────────────── -->
   <script>
     let isRecording = false;
 
-    // function toggleRecording() {
-    //   const recordButton = document.getElementById('recordButton');
-    //   const recordIcon = recordButton.querySelector('i');
-    //
-    //   if (!isRecording) {
-    //     // Check if playback is active
-    //     if (!window.posePlayer || !window.posePlayer.isPlaying()) {
-    //       alert('Please start playback before recording!\n\nTip: Enable "Loop" mode to record multiple passes.');
-    //       return;
-    //     }
-    //
-    //     startRecording();
-    //     recordButton.classList.remove('green');
-    //     recordButton.classList.add('red');
-    //     recordIcon.textContent = 'stop';
-    //     recordButton.innerHTML = '<i class="material-icons" style="vertical-align:middle;font-size:200%">stop</i> Stop Recording';
-    //   } else {
-    //     stopRecording();
-    //     recordButton.classList.remove('red');
-    //     recordButton.classList.add('green');
-    //     recordIcon.textContent = 'fiber_manual_record';
-    //     recordButton.innerHTML = '<i class="material-icons" style="vertical-align:middle;font-size:200%">fiber_manual_record</i> Record BVH';
-    //     recordStartTime = -1;
-    //     document.getElementById('recdetails').innerHTML = "Not Recording...";
-    //   }
-    //
-    //   isRecording = !isRecording;
-    // }
-
-    function toggleRecording(isAutoStart = false) { // <-- Add the parameter here
-  const recordButton = document.getElementById('recordButton');
-  const recordIcon = recordButton.querySelector('i');
-
-  if (!isRecording) {
-    // Check if playback is active, BUT ONLY if this is NOT an automatic start
-    if (!isAutoStart && (!window.posePlayer || !window.posePlayer.isPlaying())) {
-      alert('Please start playback before recording!\n\nTip: Enable "Loop" mode to record multiple passes.');
-      return;
+    function toggleRecording(isAutoStart = false) {
+      const recordButton = document.getElementById('recordButton');
+      if (!isRecording) {
+        if (!isAutoStart && (!window.posePlayer || !window.posePlayer.isPlaying || !window.posePlayer.isPlaying())) {
+          alert('Please start playback before recording!\n\nTip: Enable "Loop" mode to record multiple passes.');
+          return;
+        }
+        startRecording();
+        recordButton.classList.remove('green');
+        recordButton.classList.add('red');
+        recordButton.innerHTML = '<i class="material-icons" style="vertical-align:middle;font-size:200%">stop</i> Stop Recording';
+      } else {
+        stopRecording();
+        recordButton.classList.remove('red');
+        recordButton.classList.add('green');
+        recordButton.innerHTML = '<i class="material-icons" style="vertical-align:middle;font-size:200%">fiber_manual_record</i> Record BVH';
+        recordStartTime = -1;
+        document.getElementById('recdetails').innerHTML = "Not Recording...";
+      }
+      isRecording = !isRecording;
     }
-
-    startRecording();
-    recordButton.classList.remove('green');
-    recordButton.classList.add('red');
-    recordButton.innerHTML = '<i class="material-icons" style="vertical-align:middle;font-size:200%">stop</i> Stop Recording';
-  } else {
-    stopRecording();
-    recordButton.classList.remove('red');
-    recordButton.classList.add('green');
-    recordButton.innerHTML = '<i class="material-icons" style="vertical-align:middle;font-size:200%">fiber_manual_record</i> Record BVH';
-    recordStartTime = -1;
-    document.getElementById('recdetails').innerHTML = "Not Recording...";
-  }
-
-  isRecording = !isRecording;
-}
-
-// Also, make sure the function is available globally
-window.toggleRecording = toggleRecording;
+    window.toggleRecording = toggleRecording;
 
     function startRecording() {
       initialHipPosition = null;
@@ -186,8 +215,7 @@ window.toggleRecording = toggleRecording;
       recordStartTime = Date.now();
       console.log('Started BVH recording');
     }
-
-    window.startRecording = startRecording; // Expose the function globally
+    window.startRecording = startRecording;
 
     function stopRecording() {
       recording = false;
@@ -197,23 +225,320 @@ window.toggleRecording = toggleRecording;
         alert('No frames were recorded!');
         return;
       }
-
-      // Call generateBVH and save the BVH file
-      // const bvhContent = generateBVH(firstFrameJointData, recordedMotionData);
       const bvhContent = generateBVH(recordedMotionData[0], recordedMotionData);
-      const blob = new Blob([bvhContent], { type: "text/plain;charset=utf-8" });
       const date = new Date();
       const dateString = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}`;
       const file_name = `Mocap_bvh_${dateString}.bvh`;
-      saveAs(blob, file_name);
-
+      saveAs(new Blob([bvhContent], { type: "text/plain;charset=utf-8" }), file_name);
       console.log(`Saved ${recordedMotionData.length} frames to ${file_name}`);
     }
-
-    // Make stopRecording globally accessible for pose_player.js
     window.stopRecording = stopRecording;
   </script>
 
-</body>
+  <!-- ─── Saved paths card (for quick-open links) ────────────────── -->
+  <div id="save-results" class="z-depth-2">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <strong>Saved Files</strong>
+      <a class="btn-flat btn-small" onclick="document.getElementById('save-results').style.display='none'">
+        <i class="material-icons" style="color:#ddd;">close</i>
+      </a>
+    </div>
+    <div id="save-results-body" style="margin-top:6px;font-size:0.95rem;line-height:1.35;"></div>
+  </div>
 
+  <!-- ─── YOUTUBE PLAYER ───────────────────────────── -->
+  <div id="yt-mini" class="z-depth-3">
+    <div id="yt-mini-head" class="yt-mini-head">
+      <span class="yt-mini-title"><i class="material-icons tiny">ondemand_video</i> YouTube</span>
+      <div class="yt-mini-actions">
+        <a class="btn-flat btn-small" id="yt-mini-min"><i class="material-icons">remove</i></a>
+        <a class="btn-flat btn-small" id="yt-mini-close"><i class="material-icons">close</i></a>
+      </div>
+    </div>
+
+    <div class="yt-mini-body">
+      <!-- Always visible input -->
+      <input id="yt-url" type="text" placeholder="🔗 Paste YouTube link or ID and press Enter..." />
+
+      <div class="yt-controls">
+        <a id="yt-load" class="btn waves-effect waves-light blue"><i class="material-icons left">play_arrow</i>Load</a>
+        <a id="yt-pip" class="btn-flat waves-effect"><i class="material-icons left">picture_in_picture_alt</i>PIP</a>
+
+        <!-- ✅ Pose JSON from YouTube via backend -->
+        <a id="yt-json" class="btn waves-effect waves-light green">
+          <i class="material-icons left">get_app</i>Pose JSON
+        </a>
+      </div>
+
+      <!-- (Optional) Local MP4 upload → JSON via backend -->
+      <div class="yt-controls" style="margin-top:4px">
+        <a id="mp4-json" class="btn waves-effect waves-light teal">
+          <i class="material-icons left">cloud_upload</i>Pose JSON (Upload)
+        </a>
+        <input id="mp4-file-input" type="file" accept="video/mp4,video/*" style="display:none" />
+      </div>
+
+      <div class="yt-iframe-wrap">
+        <!-- Local (downloaded) video player -->
+        <video id="local-video" controls playsinline style="display:none;width:100%;height:100%;background:#000"></video>
+
+        <!-- YouTube embed (default) -->
+        <iframe id="yt-iframe" title="YouTube video player" frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
+      </div>
+
+      <!-- Toggle row -->
+      <div class="player-toggles">
+        <a id="use-local"   class="btn waves-effect waves-light grey darken-2"><i class="material-icons left">movie</i>Use Local</a>
+        <a id="use-youtube" class="btn waves-effect waves-light grey"><i class="material-icons left">ondemand_video</i>Use YouTube</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating toggle button -->
+  <a id="yt-toggle" class="btn-floating btn-large red">
+    <i class="material-icons">ondemand_video</i>
+  </a>
+
+  <!-- ─── YouTube Logic ───────────────────────────── -->
+  <script>
+    function normalizeUrl(str){
+      try{
+        const s=str.trim();
+        if(!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s)) return new URL('https://' + s);
+        return new URL(s);
+      }catch{ return null; }
+    }
+    function extractYouTubeId(input){
+      if(!input) return null;
+      const s=input.trim().replace(/^<|>$/g,'');
+      const idLike=/^[a-zA-Z0-9_-]{11}$/;
+      if(idLike.test(s)) return s;
+      const u=normalizeUrl(s);
+      if(!u) return null;
+      const host=u.hostname.replace(/^www\./,'');
+      const path=u.pathname;
+      if(['youtube.com','m.youtube.com','youtube-nocookie.com'].includes(host)){
+        if(path.startsWith('/watch')) return u.searchParams.get('v');
+        if(path.startsWith('/embed/'))  return (path.split('/')[2]||'').substring(0,11);
+        if(path.startsWith('/shorts/')) return (path.split('/')[2]||'').substring(0,11);
+      }
+      if(host==='youtu.be') return (path.split('/')[1]||'').substring(0,11);
+      return null;
+    }
+    function loadYouTube(id,autoplay=true){
+      const iframe=document.getElementById('yt-iframe');
+      const local=document.getElementById('local-video');
+      if(!id){ M && M.toast && M.toast({html:'Invalid YouTube URL/ID'}); return; }
+      const params=new URLSearchParams({rel:0,modestbranding:1,playsinline:1,autoplay:autoplay?1:0});
+      iframe.src=`https://www.youtube.com/embed/${id}?${params.toString()}`;
+      // Ensure YouTube visible when loaded via this button
+      local.pause(); local.style.display='none';
+      iframe.style.display='block';
+    }
+
+    (function initYT(){
+      const mini=document.getElementById('yt-mini');
+      const head=document.getElementById('yt-mini-head');
+      const toggle=document.getElementById('yt-toggle');
+      const closeBtn=document.getElementById('yt-mini-close');
+      const minBtn=document.getElementById('yt-mini-min');
+      const loadBtn=document.getElementById('yt-load');
+      const pipBtn=document.getElementById('yt-pip');
+      const urlInp=document.getElementById('yt-url');
+
+      toggle.addEventListener('click',()=>{ mini.style.display=(mini.style.display==='none'||!mini.style.display)?'block':'none'; });
+      closeBtn.addEventListener('click',()=>{ mini.style.display='none'; document.getElementById('yt-iframe').src='about:blank'; });
+      minBtn.addEventListener('click',()=>mini.classList.toggle('minimized'));
+
+      function doLoad(){ const id=extractYouTubeId(urlInp.value); loadYouTube(id,true); }
+      loadBtn.addEventListener('click',doLoad);
+      urlInp.addEventListener('keydown',(e)=>{ if(e.key==='Enter') doLoad(); });
+
+      pipBtn.addEventListener('click',()=>{ M && M.toast && M.toast({html:'Use the player’s PIP control if available.'}); });
+
+      // draggable window
+      (function makeDraggable(){
+        let isDown=false,startX=0,startY=0,startLeft=0,startTop=0;
+        head.addEventListener('mousedown',(e)=>{
+          isDown=true;
+          const rect=mini.getBoundingClientRect();
+          startX=e.clientX; startY=e.clientY;
+          startLeft=rect.left; startTop=rect.top;
+          document.body.style.cursor='grabbing'; e.preventDefault();
+        });
+        window.addEventListener('mouseup',()=>{isDown=false;document.body.style.cursor='auto';});
+        window.addEventListener('mousemove',(e)=>{
+          if(!isDown)return;
+          const dx=e.clientX-startX, dy=e.clientY-startY;
+          mini.style.left=(startLeft+dx)+'px';
+          mini.style.top=(startTop+dy)+'px';
+          mini.style.right='auto'; mini.style.bottom='auto';
+        });
+      })();
+    })();
+  </script>
+
+  <!-- ─── Player Switching Helpers ──────────────────────────────── -->
+  <script>
+    function switchToLocalVideo(src) {
+      const local = document.getElementById('local-video');
+      const yt    = document.getElementById('yt-iframe');
+
+      if (!src) return;
+      local.src = src;
+      local.style.display = 'block';
+      yt.style.display    = 'none';
+
+      // Try autoplay; some browsers require user gesture
+      local.muted = true;
+      local.play().catch(()=>{});
+      window.M && M.toast && M.toast({html: 'Playing downloaded video'});
+    }
+
+    function switchToYouTube() {
+      const local = document.getElementById('local-video');
+      const yt    = document.getElementById('yt-iframe');
+
+      local.pause();
+      local.style.display = 'none';
+      yt.style.display    = 'block';
+      window.M && M.toast && M.toast({html: 'Switched to YouTube'});
+    }
+
+    // Hook toggle buttons
+    (function hookPlayerToggles(){
+      const useLocalBtn = document.getElementById('use-local');
+      const useYtBtn    = document.getElementById('use-youtube');
+
+      if (useLocalBtn) {
+        useLocalBtn.addEventListener('click', () => {
+          const lastSaved = window.__lastSavedVideoPath;
+          if (!lastSaved) {
+            window.M && M.toast && M.toast({html: 'No downloaded video yet'});
+            return;
+          }
+          switchToLocalVideo(lastSaved);
+        });
+      }
+      if (useYtBtn) {
+        useYtBtn.addEventListener('click', switchToYouTube);
+      }
+    })();
+  </script>
+
+  <!-- ─── Backend Bridge: save into docs/videos & docs/poses ─────── -->
+  <script>
+    // Render the "Saved Files" card with links
+    function showSavedResults(data) {
+      const card = document.getElementById('save-results');
+      const body = document.getElementById('save-results-body');
+      const videoHref = data.video_path ? data.video_path : null;
+      const jsonHref  = data.json_path ? data.json_path : null;
+
+      let html = '';
+      if (videoHref) {
+        html += `🎬 Video: <a href="${videoHref}" target="_blank" rel="noopener">${videoHref}</a><br/>`;
+      }
+      if (jsonHref) {
+        html += `📄 JSON: <a href="${jsonHref}" target="_blank" rel="noopener">${jsonHref}</a>`;
+      }
+      if (!html) html = 'No paths returned.';
+
+      body.innerHTML = html;
+      card.style.display = 'block';
+    }
+
+    // POST form-urlencoded and parse JSON reply (no file download here; backend saves in docs/)
+    async function postFormJson(url, formDataObj) {
+      const body = new URLSearchParams(formDataObj).toString();
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+        body
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const msg = data && data.error ? data.error : `HTTP ${resp.status}`;
+        throw new Error(msg);
+      }
+      return data;
+    }
+
+    // POST multipart/form-data (file upload) → JSON reply with saved paths
+    async function postFileJson(url, file) {
+      const fd = new FormData();
+      fd.append('file', file, file.name || 'video.mp4');
+      const resp = await fetch(url, { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const msg = data && data.error ? data.error : `HTTP ${resp.status}`;
+        throw new Error(msg);
+      }
+      return data;
+    }
+
+    // Button: Pose JSON from YT (via /api/yt2json) → saves to docs/ and returns paths
+    (function hookYouTubeToJson(){
+      const btn = document.getElementById('yt-json');
+      const urlInp = document.getElementById('yt-url');
+      if (!btn || !urlInp) return;
+
+      btn.addEventListener('click', async () => {
+        try {
+          const raw = (urlInp.value || '').trim();
+          const id = (typeof extractYouTubeId === 'function') ? extractYouTubeId(raw) : null;
+          const ytUrl = id && id.length === 11 ? `https://youtu.be/${id}` : raw;
+          if (!ytUrl) { M && M.toast && M.toast({html:'Enter a YouTube URL/ID'}); return; }
+
+          M && M.toast && M.toast({html:'Downloading and extracting pose…'});
+          const data = await postFormJson('http://127.0.0.1:5000/api/yt2json', { url: ytUrl });
+
+          // Show paths and quick-open links
+          showSavedResults(data);
+
+          // Remember & auto switch to the downloaded file
+          window.__lastSavedVideoPath = data.video_path;        // e.g., "videos/abcd1234.mp4"
+          switchToLocalVideo(data.video_path);
+
+          M && M.toast && M.toast({html:`Saved to docs/${data.json_path}`});
+          alert(`✅ JSON saved at: ${data.json_path}\n🎬 Video saved at: ${data.video_path}`);
+
+        } catch (e) {
+          console.error(e);
+          M && M.toast && M.toast({html:'Error: ' + e.message});
+          alert('Pose extraction failed:\n' + e.message);
+        }
+      });
+    })();
+
+    // Optional: local MP4 upload → JSON (via /api/video2json) → saves to docs/
+    (function hookMp4UploadToJson(){
+      const btn = document.getElementById('mp4-json');
+      const input = document.getElementById('mp4-file-input');
+      if (!btn || !input) return;
+      btn.addEventListener('click', () => input.click());
+      input.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          M && M.toast && M.toast({html:'Processing local MP4…'});
+          const data = await postFileJson('http://127.0.0.1:5000/api/video2json', file);
+          showSavedResults(data);
+          window.__lastSavedVideoPath = data.video_path;
+          switchToLocalVideo(data.video_path);
+          M && M.toast && M.toast({html:`Saved to docs/${data.json_path}`});
+          alert(`✅ JSON saved at: ${data.json_path}\n🎬 Video saved at: ${data.video_path}`);
+        } catch (e2) {
+          console.error(e2);
+          M && M.toast && M.toast({html:'Error: ' + e2.message});
+          alert('Pose extraction failed:\n' + e2.message);
+        } finally {
+          e.target.value = ''; // reset file input
+        }
+      });
+    })();
+  </script>
+</body>
 </html>
