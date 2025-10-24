@@ -5,7 +5,18 @@ Reads-in a json of MediaPipe pose landmarks and converts them to a BVH file. Hav
 ## Usage
     
 ```bash
+
 git clone https://github.com/benniebendiksen/direct_converter_mediapipe_pose_to_bvh.git
-direct_converter_mediapipe_pose_to_bvh
-npx http-server docs
+cd direct_converter_mediapipe_pose_to_bvh
+```
+## backend (Terminal 1)
+
+```bash
+cd backend
+python server.py
+```
+## front end (Terminal 2)
+```bash
+cd direct_converter_mediapipe_pose_to_bvh/docs
+npx http-server . -p 8080
 ```
