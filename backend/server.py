@@ -29,10 +29,10 @@ def yt2json():
 
     try:
         # 1️⃣ Download video with yt-dlp
-        # subprocess.check_call(["yt-dlp", "-f", "mp4", "-o", mp4_path, url])
+        subprocess.check_call(["yt-dlp", "-f", "mp4", "-o", mp4_path, url])
         # bypass certificate check
         # Added --no-check-certificate to bypass the SSL error
-        subprocess.check_call(["yt-dlp", "--no-check-certificate", "-f", "mp4", "-o", mp4_path, url])
+        # subprocess.check_call(["yt-dlp", "--no-check-certificate", "-f", "mp4", "-o", mp4_path, url])
 
         # 2️⃣ Run pose extractor
         run_extractor(mp4_path, json_path)
