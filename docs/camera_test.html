@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <body style="background:#222;color:#fff;">
+    <h2>Simple Camera Test</h2>
+    <video id="cam" autoplay playsinline style="width:400px;height:300px;background:#000;border:2px solid #0f0;"></video>
+    <pre id="log"></pre>
+
+    <script>
+      const log = msg => {
+        console.log(msg);
+        document.getElementById('log').textContent += msg + "\n";
+      };
+
+      async function startCam() {
+        log("startCam called");
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          log("getUserMedia not supported");
+          alert("getUserMedia not supported in this browser.");
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({video:true});
+          log("got stream: " + stream.id);
+          const v = document.getElementById('cam');
+          v.srcObject = stream;
+          await v.play();
+          log("video play() called");
+        } catch (e) {
+          log("error: " + e.name + " / " + e.message);
+          alert("Camera error: " + e.name + "\n" + e.message);
+        }
+      }
+
+      // start on user gesture to avoid autoplay restrictions
+      document.body.addEventListener('click', () => {
+        log("Body clicked, starting camera");
+        startCam();
+      }, {once:true});
+    </script>
+  </body>
+</html>
