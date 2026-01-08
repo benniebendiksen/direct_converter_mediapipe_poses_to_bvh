@@ -6,25 +6,46 @@ let isPlayingStored = false;
 let playbackInterval = null;
 let loopPlayback = false; // Option to loop
 
-// Load pose_output.json
-async function loadStoredPoses() {
-    try {
-        const response = await fetch('./pose_output.json');
-        storedPoseData = await response.json();
-        console.log(`Loaded ${storedPoseData.length} frames of pose data`);
+// Track which JSON we are using (default fallback)
+let storedPoseJsonPath = './pose_output.json';
 
-        // Update status
+// Load pose JSON (can be dynamic)
+async function loadStoredPoses(jsonUrl) {
+    try {
+        // Prefer explicit argument, then global set by index.html, then fallback
+        const baseUrl =
+            jsonUrl ||
+            window.__currentPoseJsonPath ||
+            storedPoseJsonPath ||
+            './pose_output.json';
+
+        storedPoseJsonPath = baseUrl; // remember last used
+
+        // Cache-bust so we never get stale pose data
+        const url =
+            baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'ts=' + Date.now();
+
+        console.log('Loading pose JSON from:', url);
+
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        storedPoseData = await response.json();
+        console.log(`Loaded ${storedPoseData.length} frames of pose data from ${baseUrl}`);
+
         const statusEl = document.getElementById('playbackStatus');
         if (statusEl) {
-            statusEl.textContent = `Loaded ${storedPoseData.length} frames - Ready to play`;
+            statusEl.textContent = `Loaded ${storedPoseData.length} frames from ${baseUrl} - Ready to play`;
         }
 
         return true;
     } catch (error) {
-        console.error('Error loading pose_output.json:', error);
+        console.error('Error loading pose JSON:', error);
         const statusEl = document.getElementById('playbackStatus');
         if (statusEl) {
-            statusEl.textContent = 'Error: pose_output.json not found';
+            statusEl.textContent = 'Error: pose JSON not found';
         }
         return false;
     }
@@ -32,7 +53,7 @@ async function loadStoredPoses() {
 
 // Convert stored landmark array to MediaPipe format
 function convertToMediaPipeFormat(landmarkArray) {
-    return landmarkArray.map((lm, index) => ({
+    return landmarkArray.map((lm) => ({
         x: lm.x,
         y: lm.y,
         z: lm.z,
@@ -42,13 +63,11 @@ function convertToMediaPipeFormat(landmarkArray) {
 
 // Check if we should auto-stop recording when playback ends
 function checkAutoStopRecording() {
-    // If recording is active and playback just ended, stop recording
     if (window.recording && !isPlayingStored) {
         console.log('Playback ended - auto-stopping recording');
         if (window.stopRecording) {
             window.stopRecording();
         }
-        // Trigger the button click to update UI
         const recordBtn = document.getElementById('recordButton');
         if (recordBtn && recordBtn.textContent.includes('Stop')) {
             recordBtn.click();
@@ -56,36 +75,32 @@ function checkAutoStopRecording() {
     }
 }
 
-
-
 function playStoredPoses(loop = false) {
     if (!storedPoseData || storedPoseData.length === 0) {
-        alert('Please load pose_output.json first');
+        alert('Please load pose JSON first');
         return;
     }
 
-    // --- START OF FINAL FIX ---
-    // 1. Stop the live camera feed.
+    // Stop live camera feed if it exists (from your earlier fix)
     if (window.mpCamera) {
         console.log("Stopping live camera feed for playback.");
         window.mpCamera.stop();
     }
-    // 2. CRITICAL: Disable the live results callback to prevent data overwrites.
     if (window.holistic) {
         console.log("Disabling live results callback.");
-        window.holistic.onResults(() => {}); // Set to an empty function
+        window.holistic.onResults(() => {}); // disable overwrites
     }
-    // --- END OF FINAL FIX ---
 
+    // Automatically start recording when playback begins
     if (window.toggleRecording) {
-        window.toggleRecording(true);
+        window.toggleRecording(true); // bypass alert
     }
 
     loopPlayback = loop;
     isPlayingStored = true;
     currentFrameIndex = 0;
 
-    console.log(`Starting playback (${loop ? 'loop mode' : 'once'})`);
+    console.log(`Starting playback (${loop ? 'loop mode' : 'once'}) from JSON: ${storedPoseJsonPath}`);
 
     playbackInterval = setInterval(() => {
         if (currentFrameIndex >= storedPoseData.length) {
@@ -98,134 +113,23 @@ function playStoredPoses(loop = false) {
             }
         }
 
-        // This is now the ONLY source for holisticResults
+        // This is the ONLY source for holisticResults during playback
         window.holisticResults = {
             poseLandmarks: convertToMediaPipeFormat(storedPoseData[currentFrameIndex])
         };
 
+        // Signal to BVH recorder that a frame should be recorded
         window.shouldRecordFrame = true;
+
         currentFrameIndex++;
 
-        // Update UI
         const statusEl = document.getElementById('playbackStatus');
         if (statusEl) {
             const loopText = loopPlayback ? ' (looping)' : '';
             statusEl.textContent = `Playing frame ${currentFrameIndex}/${storedPoseData.length}${loopText}`;
         }
-    }, 1000 / 30);
+    }, 1000 / 30); // 30fps
 }
-
-// function playStoredPoses(loop = false) {
-//     if (!storedPoseData || storedPoseData.length === 0) {
-//         console.error('No stored pose data available');
-//         alert('Please load pose_output.json first');
-//         return;
-//     }
-//
-//     // Automatically start recording when playback begins
-//     if (window.toggleRecording) {
-//         window.toggleRecording(true); // Call with 'true' to bypass the alert
-//     }
-//
-//     loopPlayback = loop;
-//     isPlayingStored = true;
-//     currentFrameIndex = 0;
-//
-//     console.log(`Starting playback (${loop ? 'loop mode' : 'once'})`);
-//
-//     // Update holisticResults with stored data at ~30fps
-//     playbackInterval = setInterval(() => {
-//         if (currentFrameIndex >= storedPoseData.length) {
-//             if (loopPlayback) {
-//                 // Loop back to start
-//                 currentFrameIndex = 0;
-//                 console.log('Looping playback...');
-//             } else {
-//                 // Stop at end
-//                 stopStoredPoses();
-//                 checkAutoStopRecording();
-//                 return;
-//             }
-//         }
-//
-//         // Create synthetic holisticResults object
-//         window.holisticResults = {
-//             poseLandmarks: convertToMediaPipeFormat(storedPoseData[currentFrameIndex])
-//         };
-//
-//         // Explicitly tell the recorder to save this frame.
-//         // if (recording && window.updateMotionData) {
-//         //     window.updateMotionData(false);
-//         // }
-//         window.shouldRecordFrame = true;
-//
-//         currentFrameIndex++;
-//
-//         // Update UI
-//         const statusEl = document.getElementById('playbackStatus');
-//         if (statusEl) {
-//             const loopText = loopPlayback ? ' (looping)' : '';
-//             statusEl.textContent = `Playing frame ${currentFrameIndex}/${storedPoseData.length}${loopText}`;
-//         }
-//     }, 1000 / 30); // 30fps
-// }
-
-// Play through stored poses
-// function playStoredPoses(loop = false) {
-//     // First, check if the model is ready
-//     if (!window.modelReady) {
-//         alert("3D model is not ready yet. Please wait a few moments and try again.");
-//         console.warn("Attempted to play before model was loaded.");
-//         return; // Stop the function from proceeding
-//     }
-//
-//     if (!storedPoseData || storedPoseData.length === 0) {
-//         console.error('No stored pose data available');
-//         alert('Please load pose_output.json first');
-//         return;
-//     }
-//
-//     // Automatically start recording when playback begins
-//     if (window.toggleRecording) {
-//         window.toggleRecording(true); // Call with 'true' to bypass the alert
-//     }
-//
-//     loopPlayback = loop;
-//     isPlayingStored = true;
-//     currentFrameIndex = 0;
-//
-//     console.log(`Starting playback (${loop ? 'loop mode' : 'once'})`);
-//
-//     // Update holisticResults with stored data at ~30fps
-//     playbackInterval = setInterval(() => {
-//         if (currentFrameIndex >= storedPoseData.length) {
-//             if (loopPlayback) {
-//                 // Loop back to start
-//                 currentFrameIndex = 0;
-//                 console.log('Looping playback...');
-//             } else {
-//                 // Stop at end
-//                 stopStoredPoses();
-//                 checkAutoStopRecording();
-//                 return;
-//             }
-//         }
-//
-//         // Create synthetic holisticResults object
-//         window.holisticResults = {
-//             poseLandmarks: convertToMediaPipeFormat(storedPoseData[currentFrameIndex])
-//         };
-//
-//         currentFrameIndex++;
-//
-//         // Update UI
-//         const statusEl = document.getElementById('playbackStatus');
-//         if (statusEl) {
-//             const loopText = loopPlayback ? ' (looping)' : '';
-//             statusEl.textContent = `Playing frame ${currentFrameIndex}/${storedPoseData.length}${loopText}`;
-//         }
-//     }, 1000 / 30); // 30fps
-// }
 
 function stopStoredPoses() {
     isPlayingStored = false;
@@ -236,18 +140,15 @@ function stopStoredPoses() {
 
     window.holisticResults = null;
 
-    // --- START OF FINAL FIX ---
-    // 1. CRITICAL: Restore the live results callback.
+    // Restore live callbacks / camera if they exist
     if (window.holistic && window.onResults2) {
         console.log("Restoring live results callback.");
         window.holistic.onResults(window.onResults2);
     }
-    // 2. Restart the live camera feed.
     if (window.mpCamera) {
         console.log("Restarting live camera feed.");
         window.mpCamera.start();
     }
-    // --- END OF FINAL FIX ---
 
     const statusEl = document.getElementById('playbackStatus');
     if (statusEl && storedPoseData) {
@@ -256,21 +157,6 @@ function stopStoredPoses() {
 
     console.log('Stopped playback');
 }
-
-// function stopStoredPoses() {
-//     isPlayingStored = false;
-//     if (playbackInterval) {
-//         clearInterval(playbackInterval);
-//         playbackInterval = null;
-//     }
-//
-//     const statusEl = document.getElementById('playbackStatus');
-//     if (statusEl && storedPoseData) {
-//         statusEl.textContent = `Stopped at frame ${currentFrameIndex}/${storedPoseData.length}`;
-//     }
-//
-//     console.log('Stopped playback');
-// }
 
 function resetStoredPoses() {
     stopStoredPoses();
@@ -298,17 +184,30 @@ function toggleLoop() {
         }
     }
 
-    // If currently playing, restart with new loop setting
     if (isPlayingStored) {
         stopStoredPoses();
         playStoredPoses(loopPlayback);
     }
 }
 
-// Auto-load on page load
-window.addEventListener('load', async () => {
-    await loadStoredPoses();
-});
+// Called from index.html when a new JSON is created by the backend
+async function setPoseJson(jsonUrl) {
+    console.log("posePlayer.setPoseJson called with:", jsonUrl);
+    storedPoseJsonPath = jsonUrl;
+    window.__currentPoseJsonPath = jsonUrl;
+    await loadStoredPoses(jsonUrl);
+}
+
+// On script load: if index already set __currentPoseJsonPath, use that; else fallback
+(async () => {
+    if (window.__currentPoseJsonPath) {
+        console.log("pose_player.js: found __currentPoseJsonPath on load:", window.__currentPoseJsonPath);
+        await setPoseJson(window.__currentPoseJsonPath);
+    } else {
+        console.log("pose_player.js: no __currentPoseJsonPath yet, loading default JSON");
+        await loadStoredPoses();
+    }
+})();
 
 // Export functions for UI controls
 window.posePlayer = {
@@ -317,5 +216,6 @@ window.posePlayer = {
     stop: stopStoredPoses,
     reset: resetStoredPoses,
     toggleLoop: toggleLoop,
-    isPlaying: () => isPlayingStored
+    isPlaying: () => isPlayingStored,
+    setPoseJson: setPoseJson   // 👈 used from index.html
 };
