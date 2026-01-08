@@ -2,3 +2,4 @@
 .env/
 docs/poses/
 docs/videos/
+.DS_Store
